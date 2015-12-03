@@ -138,7 +138,6 @@ def twinkle():
             if current.has_key(target):
                 pass
             else:
-                print target
                 current[target] = True
                 lastchange = time.time()
         message = [0x03]
@@ -175,7 +174,6 @@ def twinkle2():
             if current.has_key(target):
                 pass
             else:
-                print target
                 current[target] = True
                 lastchange = time.time()
         message = [0x03]

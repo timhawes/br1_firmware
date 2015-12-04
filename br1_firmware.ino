@@ -47,6 +47,10 @@ struct EepromData {
   char ssid[128];
   char passphrase[128];
   uint16_t pixelcount;
+  uint16_t colourorder;
+  uint8_t scalered;
+  uint8_t scalegreen;
+  uint8_t scaleblue;
 } eepromData;
 
 char myhostname[64];
@@ -95,7 +99,7 @@ void setup() {
     Serial.print(" HOSTNAME=");
     Serial.println(myhostname);
 
-    pixels.updateType(NEO_GRB + NEO_KHZ800);
+    pixels.updateType(eepromData.colourorder + NEO_KHZ800);
     pixels.updateLength(eepromData.pixelcount);
     pixels.setPin(dataPin);
     pixels.begin();
@@ -206,7 +210,9 @@ void ledModeShow() {
 void singleColour(uint8_t red, uint8_t green, uint8_t blue) {
 
   for (int i = 0; i < eepromData.pixelcount; i++) {
-    pixels.setPixelColor(i, pixels.Color(red, green, blue));
+    pixels.setPixelColor(i, pixels.Color(red * eepromData.scalered / 255,
+                                         green * eepromData.scalegreen / 255,
+                                         blue * eepromData.scaleblue / 255));
   }
   pixels.show();
 }
@@ -247,6 +253,18 @@ void configRootHandler() {
       "name=\"ssid\" /><br/>"
       "Passphrase: <input type=\"text\" name=\"passphrase\" /><br/>"
       "Pixel Count: <input type=\"text\" name=\"pixelcount\" /><br/>"
+      "Colour Order: <select name=\"colourorder\">"
+      "<option value=\"6\">RGB</option>"
+      "<option value=\"9\">RBG</option>"
+      "<option value=\"82\">GRB</option>"
+      "<option value=\"161\">GBR</option>"
+      "<option value=\"88\">BRG</option>"
+      "<option value=\"164\">BGR</option>"
+      "</select><br/>"
+      "Scaling: "
+      "R<input type=\"text\" name=\"scalered\" value=\"255\"/>"
+      "G<input type=\"text\" name=\"scalegreen\" value=\"255\"/>"
+      "B<input type=\"text\" name=\"scaleblue\" value=\"255\"/><br/>"
       "<input type=\"submit\" /></form>";
 
   server.send(200, "text/html", form);
@@ -263,6 +281,18 @@ void configUpdateHandler() {
     }
     if (server.argName(i) == "pixelcount") {
       eepromData.pixelcount = server.arg(i).toInt();
+    }
+    if (server.argName(i) == "colourorder") {
+      eepromData.colourorder = server.arg(i).toInt();
+    }
+    if (server.argName(i) == "scalered") {
+      eepromData.scalered = server.arg(i).toInt();
+    }
+    if (server.argName(i) == "scalegreen") {
+      eepromData.scalegreen = server.arg(i).toInt();
+    }
+    if (server.argName(i) == "scaleblue") {
+      eepromData.scaleblue = server.arg(i).toInt();
     }
     eepromData.configured = 1;
     EEPROM.put(0, eepromData);

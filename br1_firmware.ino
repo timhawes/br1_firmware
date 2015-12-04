@@ -26,15 +26,15 @@ extern "C" {
 // #define DEBUG_PACKETS
 
 #ifdef DEBUG
- #define DEBUG_PRINT(x) Serial.print(x)
- #define DEBUG_PRINTDEC(x) Serial.print(x, DEC)
- #define DEBUG_PRINTHEX(x) Serial.print(x, HEX)
- #define DEBUG_PRINTLN(x) Serial.println(x)
+#define DEBUG_PRINT(x) Serial.print(x)
+#define DEBUG_PRINTDEC(x) Serial.print(x, DEC)
+#define DEBUG_PRINTHEX(x) Serial.print(x, HEX)
+#define DEBUG_PRINTLN(x) Serial.println(x)
 #else
- #define DEBUG_PRINT(x)
- #define DEBUG_PRINTDEC(x)
- #define DEBUG_PRINTHEX(x)
- #define DEBUG_PRINTLN(x)
+#define DEBUG_PRINT(x)
+#define DEBUG_PRINTDEC(x)
+#define DEBUG_PRINTHEX(x)
+#define DEBUG_PRINTLN(x)
 #endif
 
 const uint8_t irPin = 14;
@@ -95,17 +95,16 @@ void setup() {
     Serial.println(ip);
     Serial.println(" is the IP address.");
 
-    pixels.updateType(NEO_GRB+NEO_KHZ800);
+    pixels.updateType(NEO_GRB + NEO_KHZ800);
     pixels.updateLength(eepromData.pixelcount);
     pixels.setPin(dataPin);
     pixels.begin();
-    for (int i=0; i<300; i++) {
+    for (int i = 0; i < 300; i++) {
       pixels.setPixelColor(i, pixels.Color(1, 1, 1));
     }
     pixels.show();
     Udp.begin(udpPort);
   }
-
 }
 
 void loop() {
@@ -147,127 +146,122 @@ void loop() {
   }
 
   uint8_t newButtonState = digitalRead(buttonPin);
-  if ((newButtonState==LOW) && (buttonState==HIGH)) {
+  if ((newButtonState == LOW) && (buttonState == HIGH)) {
     ledMode++;
     ledModeShow();
     buttonState = LOW;
-  } else if ((newButtonState==HIGH) && (buttonState==LOW)) {
+  } else if ((newButtonState == HIGH) && (buttonState == LOW)) {
     buttonState = HIGH;
   }
-
 }
 
-void ledModeShow()
-{
+void ledModeShow() {
 
   switch (ledMode) {
-    case 0:
-      singleColour(0, 0, 0);
-      break;
-    case 1:
-      singleColour(255, 0, 0);
-      break;
-    case 2:
-      singleColour(127, 0, 0);
-      break;
-    case 3:
-      singleColour(7, 0, 0);
-      break;
-    case 4:
-      singleColour(0, 255, 0);
-      break;
-    case 5:
-      singleColour(0, 127, 0);
-      break;
-    case 6:
-      singleColour(0, 7, 0);
-      break;
-    case 7:
-      singleColour(0, 0, 255);
-      break;
-    case 8:
-      singleColour(0, 0, 127);
-      break;
-    case 9:
-      singleColour(0, 0, 7);
-      break;
-    case 10:
-      singleColour(255, 255, 255);
-      break;
-    case 11:
-      singleColour(127, 127, 127);
-      break;
-    case 12:
-      singleColour(7, 7, 7);
-      break;
-    default:
-      ledMode = 0;
-      singleColour(0, 0, 0);
+  case 0:
+    singleColour(0, 0, 0);
+    break;
+  case 1:
+    singleColour(255, 0, 0);
+    break;
+  case 2:
+    singleColour(127, 0, 0);
+    break;
+  case 3:
+    singleColour(7, 0, 0);
+    break;
+  case 4:
+    singleColour(0, 255, 0);
+    break;
+  case 5:
+    singleColour(0, 127, 0);
+    break;
+  case 6:
+    singleColour(0, 7, 0);
+    break;
+  case 7:
+    singleColour(0, 0, 255);
+    break;
+  case 8:
+    singleColour(0, 0, 127);
+    break;
+  case 9:
+    singleColour(0, 0, 7);
+    break;
+  case 10:
+    singleColour(255, 255, 255);
+    break;
+  case 11:
+    singleColour(127, 127, 127);
+    break;
+  case 12:
+    singleColour(7, 7, 7);
+    break;
+  default:
+    ledMode = 0;
+    singleColour(0, 0, 0);
   }
-
 }
 
-void singleColour(uint8_t red, uint8_t green, uint8_t blue)
-{
+void singleColour(uint8_t red, uint8_t green, uint8_t blue) {
 
-  for (int i=0; i<eepromData.pixelcount; i++) {
+  for (int i = 0; i < eepromData.pixelcount; i++) {
     pixels.setPixelColor(i, pixels.Color(red, green, blue));
   }
   pixels.show();
-
 }
 
-void udpMessageHandler(int len)
-{
+void udpMessageHandler(int len) {
 
   switch (inboundMessage[0]) {
-    case 0x01: {
-      // static colour: r, g, b
-      singleColour(inboundMessage[1], inboundMessage[2], inboundMessage[3]);
-      break;
-    }
-    case 0x02:
-      // animated mode: n
-      break;
-    case 0x03: {
-      // full sequence: r, g, b, r, g, b, ...
-      uint8_t red, green, blue;
-      uint16_t pos = 1;
-      uint16_t pixel = 0;
-      while ((pos+2) < len) {
-        red = inboundMessage[pos];
-        green = inboundMessage[pos+1];
-        blue = inboundMessage[pos+2];
-        pixels.setPixelColor(pixel, pixels.Color(red, green, blue));
-        pixel++;
-        pos += 3;
-      }
-      pixels.show();
-      break;
-    }
+  case 0x01: {
+    // static colour: r, g, b
+    singleColour(inboundMessage[1], inboundMessage[2], inboundMessage[3]);
+    break;
   }
-
+  case 0x02:
+    // animated mode: n
+    break;
+  case 0x03: {
+    // full sequence: r, g, b, r, g, b, ...
+    uint8_t red, green, blue;
+    uint16_t pos = 1;
+    uint16_t pixel = 0;
+    while ((pos + 2) < len) {
+      red = inboundMessage[pos];
+      green = inboundMessage[pos + 1];
+      blue = inboundMessage[pos + 2];
+      pixels.setPixelColor(pixel, pixels.Color(red, green, blue));
+      pixel++;
+      pos += 3;
+    }
+    pixels.show();
+    break;
+  }
+  }
 }
 
 void configRootHandler() {
-  const char form[] = "<form method=\"POST\" action=\"update\">SSID: <input type=\"text\" name=\"ssid\" /><br/>"
-    "Passphrase: <input type=\"text\" name=\"passphrase\" /><br/>"
-    "Pixel Count: <input type=\"text\" name=\"pixelcount\" /><br/>"
-    "<input type=\"submit\" /></form>";
+  const char form[] =
+      "<form method=\"POST\" action=\"update\">SSID: <input type=\"text\" "
+      "name=\"ssid\" /><br/>"
+      "Passphrase: <input type=\"text\" name=\"passphrase\" /><br/>"
+      "Pixel Count: <input type=\"text\" name=\"pixelcount\" /><br/>"
+      "<input type=\"submit\" /></form>";
 
   server.send(200, "text/html", form);
 }
 
 void configUpdateHandler() {
 
-  for (uint8_t i=0; i<server.args(); i++){
-    if (server.argName(i)=="ssid") {
+  for (uint8_t i = 0; i < server.args(); i++) {
+    if (server.argName(i) == "ssid") {
       server.arg(i).toCharArray(eepromData.ssid, sizeof(eepromData.ssid));
     }
-    if (server.argName(i)=="passphrase") {
+    if (server.argName(i) == "passphrase") {
       server.arg(i).toCharArray(eepromData.passphrase, sizeof(eepromData.passphrase));
     }
-    if (server.argName(i)=="pixelcount") {
+    if (server.argName(i) == "pixelcount") {
       eepromData.pixelcount = server.arg(i).toInt();
     }
     eepromData.configured = 1;
@@ -275,7 +269,6 @@ void configUpdateHandler() {
     EEPROM.commit();
   }
   server.send(200, "text/html", "<p>Settings updated</p>");
-
 }
 
 void configuration_mode() {
@@ -290,5 +283,4 @@ void configuration_mode() {
   while (1) {
     server.handleClient();
   }
-
 }

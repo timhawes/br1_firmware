@@ -59,7 +59,7 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel();
 ESP8266WebServer server(80);
 WiFiUDP Udp;
 uint8_t inboundMessage[1500];
-uint8_t ledMode = 0;
+uint8_t ledMode = 10;
 uint8_t buttonState = HIGH;
 
 void setup() {
@@ -112,6 +112,25 @@ void setup() {
 }
 
 void loop() {
+
+  udpLoop();
+  ledLoop();
+
+  uint8_t newButtonState = digitalRead(buttonPin);
+  if ((newButtonState == LOW) && (buttonState == HIGH)) {
+    ledMode++;
+    Serial.print("Button pressed, mode=");
+    Serial.println(ledMode, DEC);
+    buttonState = LOW;
+  } else if ((newButtonState == HIGH) && (buttonState == LOW)) {
+    buttonState = HIGH;
+  }
+
+  // give time to the ESP8266 WiFi stack
+  yield();
+}
+
+void udpLoop() {
   unsigned int packetSize;
   IPAddress remoteIp;
   int remotePort;
@@ -148,62 +167,62 @@ void loop() {
 #endif
     udpMessageHandler(len);
   }
-
-  uint8_t newButtonState = digitalRead(buttonPin);
-  if ((newButtonState == LOW) && (buttonState == HIGH)) {
-    ledMode++;
-    ledModeShow();
-    buttonState = LOW;
-  } else if ((newButtonState == HIGH) && (buttonState == LOW)) {
-    buttonState = HIGH;
-  }
 }
 
-void ledModeShow() {
+void ledLoop() {
 
   switch (ledMode) {
   case 0:
+    // black
     singleColour(0, 0, 0);
     break;
   case 1:
+    // red
     singleColour(255, 0, 0);
     break;
   case 2:
-    singleColour(127, 0, 0);
-    break;
-  case 3:
-    singleColour(7, 0, 0);
-    break;
-  case 4:
+    // green
     singleColour(0, 255, 0);
     break;
-  case 5:
-    singleColour(0, 127, 0);
+  case 3:
+    // yellow
+    singleColour(255, 255, 0);
     break;
-  case 6:
-    singleColour(0, 7, 0);
-    break;
-  case 7:
+  case 4:
+    // blue
     singleColour(0, 0, 255);
     break;
-  case 8:
-    singleColour(0, 0, 127);
+  case 5:
+    // magenta
+    singleColour(255, 0, 255);
     break;
-  case 9:
-    singleColour(0, 0, 7);
+  case 6:
+    // cyan
+    singleColour(0, 255, 255);
     break;
-  case 10:
+  case 7:
+    // white
     singleColour(255, 255, 255);
     break;
-  case 11:
-    singleColour(127, 127, 127);
+  case 8:
+    // fading HSV
+    hsvFade();
     break;
-  case 12:
-    singleColour(7, 7, 7);
+  case 9:
+    // static HSV
+    hsvStatic();
+    break;
+  case 10:
+    // scrolling HSV
+    hsvScroll();
+    break;
+  case 255:
+    // network mode - no action
     break;
   default:
-    ledMode = 0;
+    // default to black
     singleColour(0, 0, 0);
+    ledMode = 0;
   }
 }
 
@@ -217,16 +236,64 @@ void singleColour(uint8_t red, uint8_t green, uint8_t blue) {
   pixels.show();
 }
 
+void hsvFade() {
+  static int hue = 0;
+  static unsigned long lastChange = 0;
+  unsigned long interval = 50;
+
+  if (millis() - lastChange > interval) {
+    for (int i = 0; i < eepromData.pixelcount; i++) {
+      pixels.setPixelColor(i, ledHSV(hue, 1.0, 1.0));
+    }
+    pixels.show();
+    if (hue >= 359) {
+      hue = 0;
+    } else {
+      ++hue;
+    }
+    lastChange = millis();
+  }
+}
+
+void hsvStatic() {
+
+  for (int i = 0; i < eepromData.pixelcount; i++) {
+    pixels.setPixelColor(i, ledHSV(i * 360 / eepromData.pixelcount, 1.0, 1.0));
+  }
+  pixels.show();
+}
+
+void hsvScroll() {
+  static int hue = 0;
+  static unsigned long lastChange = 0;
+  unsigned long interval = 50;
+
+  if (millis() - lastChange > interval) {
+    for (int i = 0; i < eepromData.pixelcount; i++) {
+      pixels.setPixelColor(i, ledHSV(((i * 360 / eepromData.pixelcount) + hue) % 360, 1.0, 1.0));
+    }
+    pixels.show();
+    if (hue > 359) {
+      hue = 0;
+    } else {
+      ++hue;
+    }
+    lastChange = millis();
+  }
+}
+
 void udpMessageHandler(int len) {
 
   switch (inboundMessage[0]) {
   case 0x01: {
     // static colour: r, g, b
     singleColour(inboundMessage[1], inboundMessage[2], inboundMessage[3]);
+    ledMode = 255;
     break;
   }
   case 0x02:
-    // animated mode: n
+    // preset mode: n
+    ledMode = inboundMessage[1];
     break;
   case 0x03: {
     // full sequence: r, g, b, r, g, b, ...
@@ -242,9 +309,72 @@ void udpMessageHandler(int len) {
       pos += 3;
     }
     pixels.show();
+    ledMode = 255;
     break;
   }
   }
+}
+
+// Convert a given HSV (Hue Saturation Value) to RGB(Red Green Blue) and set
+// the led to the color
+//  h is hue value, integer between 0 and 360
+//  s is saturation value, double between 0 and 1
+//  v is value, double between 0 and 1
+// http://splinter.com.au/blog/?p=29
+uint32_t ledHSV(int h, double s, double v) {
+  double r = 0;
+  double g = 0;
+  double b = 0;
+
+  double hf = h / 60.0;
+
+  int i = floor(h / 60.0);
+  double f = h / 60.0 - i;
+  double pv = v * (1 - s);
+  double qv = v * (1 - s * f);
+  double tv = v * (1 - s * (1 - f));
+
+  switch (i) {
+  case 0:
+    r = v;
+    g = tv;
+    b = pv;
+    break;
+  case 1:
+    r = qv;
+    g = v;
+    b = pv;
+    break;
+  case 2:
+    r = pv;
+    g = v;
+    b = tv;
+    break;
+  case 3:
+    r = pv;
+    g = qv;
+    b = v;
+    break;
+  case 4:
+    r = tv;
+    g = pv;
+    b = v;
+    break;
+  case 5:
+    r = v;
+    g = pv;
+    b = qv;
+    break;
+  }
+
+  // set each component to a integer value between 0 and 255
+  int red = constrain((int)255 * r, 0, 255);
+  int green = constrain((int)255 * g, 0, 255);
+  int blue = constrain((int)255 * b, 0, 255);
+
+  return pixels.Color(red * eepromData.scalered / 255,
+                      green * eepromData.scalegreen / 255,
+                      blue * eepromData.scaleblue / 255);
 }
 
 void configRootHandler() {

@@ -64,7 +64,7 @@ void setup() {
 
   Serial.begin(115200);
   Serial.println();
-  Serial.println("br1 boot");
+  Serial.println("Booting... Hold button to enter configuration mode...");
 
   snprintf(myhostname, sizeof(myhostname), "ws2812-%08x", ESP.getChipId());
   wifi_station_set_hostname(myhostname);
@@ -73,33 +73,33 @@ void setup() {
   EEPROM.get(0, eepromData);
 
   if (digitalRead(buttonPin) == LOW) {
-    Serial.println("saw button press at startup, wait then test again for debounce");
     delay(500);
     if (digitalRead(buttonPin) == LOW) {
-      Serial.println("button held, going into configuration mode");
+      Serial.println("Button pressed, going into configuration mode");
       configuration_mode();
-    } else {
-      Serial.println("false alarm - continue as normal");
     }
   } else if (eepromData.configured != 1) {
-    Serial.println("blank EEPROM, going into configuration mode");
+    Serial.println("EEPROM is empty, going into configuration mode");
     configuration_mode();
   } else {
     WiFi.begin(eepromData.ssid, eepromData.passphrase);
-    Serial.print("waiting for wifi...");
+    Serial.print("Waiting for wifi...");
     while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
+      delay(100);
     }
-    Serial.println(" ready.");
     ip = WiFi.localIP();
-    Serial.println(ip);
-    Serial.println(" is the IP address.");
+    Serial.print(" SSID=");
+    Serial.print(eepromData.ssid);
+    Serial.print(" IP=");
+    Serial.print(ip);
+    Serial.print(" HOSTNAME=");
+    Serial.println(myhostname);
 
     pixels.updateType(NEO_GRB + NEO_KHZ800);
     pixels.updateLength(eepromData.pixelcount);
     pixels.setPin(dataPin);
     pixels.begin();
-    for (int i = 0; i < 300; i++) {
+    for (int i = 0; i < eepromData.pixelcount; i++) {
       pixels.setPixelColor(i, pixels.Color(1, 1, 1));
     }
     pixels.show();
@@ -273,8 +273,34 @@ void configUpdateHandler() {
 
 void configuration_mode() {
 
+  // set first three pixels to dim white to acknowledge configuration mode
+  pixels.updateType(NEO_RGB + NEO_KHZ800);
+  pixels.updateLength(3);
+  pixels.setPin(dataPin);
+  pixels.begin();
+  pixels.setPixelColor(0, pixels.Color(63, 63, 63));
+  pixels.setPixelColor(1, pixels.Color(63, 63, 63));
+  pixels.setPixelColor(2, pixels.Color(63, 63, 63));
+  pixels.show();
+
+  // go into access point mode
   WiFi.mode(WIFI_AP);
   WiFi.softAP(myhostname);
+  ip = WiFi.softAPIP();
+
+  // display access details
+  Serial.print("SSID ");
+  Serial.println(myhostname);
+  Serial.print("URL http://");
+  Serial.print(ip);
+  Serial.println("/");
+
+  // set first three pixels to Red-Green-Blue to indicate that configuration
+  // mode AP is ready, and to help the user identify the correct colour order
+  pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+  pixels.setPixelColor(1, pixels.Color(0, 255, 0));
+  pixels.setPixelColor(2, pixels.Color(0, 0, 255));
+  pixels.show();
 
   server.on("/", configRootHandler);
   server.on("/update", configUpdateHandler);

@@ -50,6 +50,7 @@ struct EepromData {
 } eepromData;
 
 char myhostname[64];
+IPAddress ip;
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel();
 ESP8266WebServer server(80);
 WiFiUDP Udp;
@@ -72,8 +73,14 @@ void setup() {
   EEPROM.get(0, eepromData);
 
   if (digitalRead(buttonPin) == LOW) {
-    Serial.println("button pressed, going into configuration mode");
-    configuration_mode();
+    Serial.println("saw button press at startup, wait then test again for debounce");
+    delay(500);
+    if (digitalRead(buttonPin) == LOW) {
+      Serial.println("button held, going into configuration mode");
+      configuration_mode();
+    } else {
+      Serial.println("false alarm - continue as normal");
+    }
   } else if (eepromData.configured != 1) {
     Serial.println("blank EEPROM, going into configuration mode");
     configuration_mode();
@@ -84,6 +91,10 @@ void setup() {
       delay(500);
     }
     Serial.println(" ready.");
+    ip = WiFi.localIP();
+    Serial.println(ip);
+    Serial.println(" is the IP address.");
+
     pixels.updateType(NEO_GRB+NEO_KHZ800);
     pixels.updateLength(eepromData.pixelcount);
     pixels.setPin(dataPin);

@@ -416,6 +416,7 @@ void udpMessageHandler(int len) {
   case 0x02:
     // preset mode: n
     ledMode = inboundMessage[1];
+    ledModeChanged = true;
     break;
   case 0x03: {
     // full sequence: r, g, b, r, g, b, ...

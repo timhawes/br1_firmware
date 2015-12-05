@@ -37,6 +37,8 @@ extern "C" {
 #define DEBUG_PRINTLN(x)
 #endif
 
+#define MAX_PIXELS 1024
+
 const uint8_t irPin = 14;
 const uint8_t buttonPin = 13;
 const uint8_t dataPin = 12;
@@ -59,7 +61,8 @@ Adafruit_NeoPixel pixels = Adafruit_NeoPixel();
 ESP8266WebServer server(80);
 WiFiUDP Udp;
 uint8_t inboundMessage[1500];
-uint8_t ledMode = 10;
+uint8_t ledMode = 9;
+boolean ledModeChanged = false;
 uint8_t buttonState = HIGH;
 
 void setup() {
@@ -121,7 +124,8 @@ void loop() {
 
   uint8_t newButtonState = digitalRead(buttonPin);
   if ((newButtonState == LOW) && (buttonState == HIGH)) {
-    ledMode++;
+    ++ledMode;
+    ledModeChanged = true;
     Serial.print("Button pressed, mode=");
     Serial.println(ledMode, DEC);
     buttonState = LOW;
@@ -184,40 +188,47 @@ void ledLoop() {
     singleColour(255, 0, 0);
     break;
   case 2:
+    // dim red
+    singleColour(63, 0, 0);
+    break;
+  case 3:
     // green
     singleColour(0, 255, 0);
     break;
-  case 3:
+  case 4:
     // yellow
     singleColour(255, 255, 0);
     break;
-  case 4:
+  case 5:
     // blue
     singleColour(0, 0, 255);
     break;
-  case 5:
+  case 6:
     // magenta
     singleColour(255, 0, 255);
     break;
-  case 6:
+  case 7:
     // cyan
     singleColour(0, 255, 255);
     break;
-  case 7:
+  case 8:
     // white
     singleColour(255, 255, 255);
     break;
-  case 8:
-    // fading HSV
-    hsvFade();
-    break;
   case 9:
-    // static HSV
-    hsvStatic();
+    hsvScroll();
     break;
   case 10:
-    // scrolling HSV
-    hsvScroll();
+    hsvFade();
+    break;
+  case 11:
+    christmasRedAndGreen();
+    break;
+  case 12:
+    twinkle();
+    break;
+  case 13:
+    redNightLight();
     break;
   case 255:
     // network mode - no action
@@ -237,6 +248,29 @@ void singleColour(uint8_t red, uint8_t green, uint8_t blue) {
                                          blue * eepromData.scaleblue / 255));
   }
   pixels.show();
+}
+
+void redNightLight() {
+  static uint8_t level = 255;
+  static unsigned long lastChange = 0;
+  const uint8_t minimum = 63;
+  const unsigned long runtime = 1800000;
+  unsigned long interval = runtime / (255 - minimum);
+
+  if (ledModeChanged) {
+    level = 255;
+    singleColour(level, 0, 0);
+    ledModeChanged = false;
+    lastChange = millis();
+  } else {
+    if (millis() - lastChange > interval) {
+      if (level > minimum) {
+        level = level - 1;
+      }
+      singleColour(level, 0, 0);
+      lastChange = millis();
+    }
+  }
 }
 
 void hsvFade() {
@@ -281,6 +315,90 @@ void hsvScroll() {
     } else {
       ++hue;
     }
+    lastChange = millis();
+  }
+}
+
+void christmasRedAndGreen() {
+  static unsigned long lastChange = 0;
+  unsigned long interval = 200;
+  const uint32_t red = pixels.Color(255, 0, 0);
+  const uint32_t green = pixels.Color(0, 255, 0);
+
+  if (ledModeChanged) {
+    // randomise all of the pixels
+    for (int i = 0; i < eepromData.pixelcount; i++) {
+      if (random(0, 2) == 0) {
+        pixels.setPixelColor(i, red);
+      } else {
+        pixels.setPixelColor(i, green);
+      }
+    }
+    pixels.show();
+    ledModeChanged = false;
+  }
+
+  if (millis() - lastChange > interval) {
+    int i = random(0, eepromData.pixelcount);
+    if (pixels.getPixelColor(i) == green) {
+      pixels.setPixelColor(i, red);
+    } else {
+      pixels.setPixelColor(i, green);
+    }
+    pixels.show();
+    lastChange = millis();
+  }
+}
+
+void twinkle() {
+  static unsigned long lastChange = 0;
+  static unsigned long lastPulse = 0;
+  static uint8_t levels[MAX_PIXELS];
+  static uint8_t current[MAX_PIXELS];
+  unsigned long pulseInterval = 250;
+  unsigned long changeInterval = 10;
+  const uint8_t low = 50;
+  const uint8_t high = 255;
+  const uint8_t step = 10;
+
+  if (ledModeChanged) {
+    for (int i = 0; i < eepromData.pixelcount; i++) {
+      levels[i] = low;
+      current[i] = 0;
+    }
+    ledModeChanged = false;
+  }
+
+  if (millis() - lastPulse > pulseInterval) {
+    int target = random(0, eepromData.pixelcount);
+    if (current[target] == 0 && levels[target] == low) {
+      current[target] = 1;
+    }
+    lastPulse = millis();
+  }
+
+  if (millis() - lastChange > changeInterval) {
+    for (int i = 0; i < eepromData.pixelcount; i++) {
+      if (current[i] == 1) {
+        // this pixel is rising
+        if (levels[i] + step > high) {
+          // the pixel has reached maximum
+          levels[i] = high;
+          current[i] = 0;
+        } else {
+          levels[i] = levels[i] + step;
+        }
+      } else if (levels[i] > low) {
+        // this pixel is falling
+        if (levels[i] - step < low) {
+          levels[i] = low;
+        } else {
+          levels[i] = levels[i] - step;
+        }
+      }
+      pixels.setPixelColor(i, pixels.Color(levels[i], levels[i], levels[i]));
+    }
+    pixels.show();
     lastChange = millis();
   }
 }

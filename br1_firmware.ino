@@ -173,7 +173,7 @@ void udpLoop() {
     }
     Serial.println();
 #endif
-    udpMessageHandler(len);
+    udpMessageHandler(len,remoteIp,remotePort);
   }
 }
 
@@ -404,7 +404,7 @@ void twinkle() {
   }
 }
 
-void udpMessageHandler(int len) {
+void udpMessageHandler(int len, IPAddress fromIP, int fromPort) {
 
   switch (inboundMessage[0]) {
   case 0x01: {
@@ -435,9 +435,22 @@ void udpMessageHandler(int len) {
     ledMode = 255;
     break;
   }
+case 0xFF: {
+    // respond to a message with device details
+    Udp.beginPacket(fromIP, fromPort);
+    for (byte i = 0; i < strlen(myhostname); ++i)
+      Udp.write(myhostname[i]);
+    
+    if (Udp.endPacket())
+      Serial.println("endPacket successful");
+    else {
+      Serial.println("endPacket failed");
+    }
+    
+    break;
   }
+ }
 }
-
 // Convert a given HSV (Hue Saturation Value) to RGB(Red Green Blue) and set
 // the led to the color
 //  h is hue value, integer between 0 and 360

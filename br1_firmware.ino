@@ -90,6 +90,7 @@ void setup() {
     configuration_mode();
   } else {
     Serial.println("Entering run mode");
+    WiFi.mode(WIFI_STA);
     WiFi.begin(eepromData.ssid, eepromData.passphrase);
     pixels.updateType(eepromData.colourorder + NEO_KHZ800);
     pixels.updateLength(eepromData.pixelcount);

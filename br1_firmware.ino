@@ -68,7 +68,7 @@ void setup() {
 
   Serial.begin(115200);
   Serial.println();
-  Serial.println("Booting... Hold button to enter configuration mode...");
+  Serial.println("Booting - Hold button to enter configuration mode");
 
   snprintf(myhostname, sizeof(myhostname), "ws2812-%08x", ESP.getChipId());
   wifi_station_set_hostname(myhostname);
@@ -86,19 +86,8 @@ void setup() {
     Serial.println("EEPROM is empty, going into configuration mode");
     configuration_mode();
   } else {
+    Serial.println("Entering run mode");
     WiFi.begin(eepromData.ssid, eepromData.passphrase);
-    Serial.print("Waiting for wifi...");
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(100);
-    }
-    ip = WiFi.localIP();
-    Serial.print(" SSID=");
-    Serial.print(eepromData.ssid);
-    Serial.print(" IP=");
-    Serial.print(ip);
-    Serial.print(" HOSTNAME=");
-    Serial.println(myhostname);
-
     pixels.updateType(eepromData.colourorder + NEO_KHZ800);
     pixels.updateLength(eepromData.pixelcount);
     pixels.setPin(dataPin);
@@ -112,6 +101,20 @@ void setup() {
 }
 
 void loop() {
+  static boolean waitingForWiFi = true;
+
+  if (waitingForWiFi) {
+    if (WiFi.status() == WL_CONNECTED) {
+      ip = WiFi.localIP();
+      Serial.print("WiFi ready: SSID=");
+      Serial.print(eepromData.ssid);
+      Serial.print(" IP=");
+      Serial.print(ip);
+      Serial.print(" HOSTNAME=");
+      Serial.println(myhostname);
+      waitingForWiFi = false;
+    }
+  }
 
   udpLoop();
   ledLoop();

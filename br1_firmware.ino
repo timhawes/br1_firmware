@@ -449,12 +449,13 @@ void configuration_mode() {
   // go into access point mode
   WiFi.mode(WIFI_AP);
   WiFi.softAP(myhostname);
+  delay(100);
   ip = WiFi.softAPIP();
 
   // display access details
-  Serial.print("SSID ");
-  Serial.println(myhostname);
-  Serial.print("URL http://");
+  Serial.print("WiFi AP: SSID=");
+  Serial.print(myhostname);
+  Serial.print(" URL=http://");
   Serial.print(ip);
   Serial.println("/");
 

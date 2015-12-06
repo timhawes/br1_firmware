@@ -15,6 +15,9 @@
 #include <ESP8266WebServer.h>
 #include <EEPROM.h>
 #include <Adafruit_NeoPixel.h>
+#define min(a,b) ((a)<(b)?(a):(b))
+#define max(a,b) ((a)>(b)?(a):(b))
+
 
 #ifdef ESP8266
 extern "C" {
@@ -173,7 +176,7 @@ void udpLoop() {
     }
     Serial.println();
 #endif
-    udpMessageHandler(len);
+    udpMessageHandler(len,remoteIp,remotePort);
   }
 }
 
@@ -230,6 +233,9 @@ void ledLoop() {
     break;
   case 13:
     redNightLight();
+    break;
+  case 14:
+    flames();
     break;
   case 255:
     // network mode - no action
@@ -320,6 +326,48 @@ void hsvScroll() {
   }
 }
 
+// Flames based on FastLED example code Fire2012 by Mark Kriegsman, July 2012 from
+// https://github.com/FastLED/FastLED/blob/master/examples/Fire2012/Fire2012.ino
+void flames() {
+  // COOLING: How much does the air cool as it rises?
+  // Less cooling = taller flames.  More cooling = shorter flames.
+  // Default 50, suggested range 20-100 
+  #define COOLING  55
+
+  // SPARKING: What chance (out of 255) is there that a new spark will be lit?
+  // Higher chance = more roaring fire.  Lower chance = more flickery fire.
+  // Default 120, suggested range 50-200.
+  #define SPARKING 120
+  
+  static byte heat[255];
+  static unsigned long lastChange = 0;
+  unsigned long interval = 16;
+  int randomnum;
+  
+
+  if (millis() - lastChange > interval) {
+    // Step 1.  Cool down every cell a little
+    for (int i = 0; i < eepromData.pixelcount; i++) {
+       randomnum = heat[i] - random(0, ((COOLING * 10) / eepromData.pixelcount) + 2);
+       heat[i] = max(randomnum, 0 );
+    }
+    // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+    for( int k= eepromData.pixelcount - 1; k >= 2; k--) {
+      heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2] ) / 3;
+    }
+    // Step 3.  Randomly ignite new 'sparks' of heat near the bottom
+    if( random(255) < SPARKING ) {
+      int y = random(7);
+      heat[y] = min((heat[y] + random(160,255)), 0xFF);
+    }
+    for( int j = 0; j < eepromData.pixelcount; j++) {
+      pixels.setPixelColor(j, ledTemp(heat[j]));
+    }
+    pixels.show();
+    lastChange = millis();
+  }
+}
+
 void christmasRedAndGreen() {
   static unsigned long lastChange = 0;
   unsigned long interval = 200;
@@ -404,7 +452,7 @@ void twinkle() {
   }
 }
 
-void udpMessageHandler(int len) {
+void udpMessageHandler(int len, IPAddress fromIP, int fromPort) {
 
   switch (inboundMessage[0]) {
   case 0x01: {
@@ -435,9 +483,22 @@ void udpMessageHandler(int len) {
     ledMode = 255;
     break;
   }
+case 0xFF: {
+    // respond to a message with device details
+    Udp.beginPacket(fromIP, fromPort);
+    for (byte i = 0; i < strlen(myhostname); ++i)
+      Udp.write(myhostname[i]);
+    
+    if (Udp.endPacket())
+      Serial.println("endPacket successful");
+    else {
+      Serial.println("endPacket failed");
+    }
+    
+    break;
   }
+ }
 }
-
 // Convert a given HSV (Hue Saturation Value) to RGB(Red Green Blue) and set
 // the led to the color
 //  h is hue value, integer between 0 and 360
@@ -489,6 +550,51 @@ uint32_t ledHSV(int h, double s, double v) {
     b = qv;
     break;
   }
+
+  // set each component to a integer value between 0 and 255
+  int red = constrain((int)255 * r, 0, 255);
+  int green = constrain((int)255 * g, 0, 255);
+  int blue = constrain((int)255 * b, 0, 255);
+
+  return pixels.Color(red * eepromData.scalered / 255,
+                      green * eepromData.scalegreen / 255,
+                      blue * eepromData.scaleblue / 255);
+}
+
+uint32_t ledTemp(int temperature) {
+  double r = 0;
+  double g = 0;
+  double b = 0;
+
+    // Scale 'heat' down from 0-255 to 0-191,
+    // which can then be easily divided into three
+    // equal 'thirds' of 64 units each.
+    uint8_t t192 = map(temperature, 0, 255,0, 192);
+
+    // calculate a value that ramps up from
+    // zero to 255 in each 'third' of the scale.
+    uint8_t heatramp = t192 & 0x3F; // 0..63
+    heatramp <<= 2; // scale up to 0..252
+
+    // now figure out which third of the spectrum we're in:
+    if( t192 & 0x80) {
+        // we're in the hottest third
+        r = 255; // full red
+        g = 255; // full green
+        b = heatramp; // ramp up blue
+
+    } else if( t192 & 0x40 ) {
+        // we're in the middle third
+        r = 255; // full red
+        g = heatramp; // ramp up green
+        b = 0; // no blue
+
+    } else {
+        // we're in the coolest third
+        r = heatramp; // ramp up red
+        g = 0; // no green
+        b = 0; // no blue
+    }
 
   // set each component to a integer value between 0 and 255
   int red = constrain((int)255 * r, 0, 255);

@@ -65,6 +65,11 @@ uint8_t ledMode = 9;
 boolean ledModeChanged = false;
 uint8_t buttonState = HIGH;
 
+void configuration_mode();
+void udpLoop();
+void ledLoop();
+void singleColour(uint8_t red, uint8_t green, uint8_t blue);
+
 void setup() {
 
   pinMode(buttonPin, INPUT_PULLUP);
@@ -138,6 +143,39 @@ void loop() {
   yield();
 }
 
+void udpMessageHandler(int len) {
+  switch (inboundMessage[0]) {
+  case 0x01: {
+    // static colour: r, g, b
+    singleColour(inboundMessage[1], inboundMessage[2], inboundMessage[3]);
+    ledMode = 255;
+    break;
+  }
+  case 0x02:
+    // preset mode: n
+    ledMode = inboundMessage[1];
+    ledModeChanged = true;
+    break;
+  case 0x03: {
+    // full sequence: r, g, b, r, g, b, ...
+    uint8_t red, green, blue;
+    uint16_t pos = 1;
+    uint16_t pixel = 0;
+    while ((pos + 2) < len) {
+      red = inboundMessage[pos];
+      green = inboundMessage[pos + 1];
+      blue = inboundMessage[pos + 2];
+      pixels.setPixelColor(pixel, pixels.Color(red, green, blue));
+      pixel++;
+      pos += 3;
+    }
+    pixels.show();
+    ledMode = 255;
+    break;
+  }
+  }
+}
+
 void udpLoop() {
   unsigned int packetSize;
   IPAddress remoteIp;
@@ -177,70 +215,6 @@ void udpLoop() {
   }
 }
 
-void ledLoop() {
-
-  switch (ledMode) {
-  case 0:
-    // black
-    singleColour(0, 0, 0);
-    break;
-  case 1:
-    // red
-    singleColour(255, 0, 0);
-    break;
-  case 2:
-    // dim red
-    singleColour(63, 0, 0);
-    break;
-  case 3:
-    // green
-    singleColour(0, 255, 0);
-    break;
-  case 4:
-    // yellow
-    singleColour(255, 255, 0);
-    break;
-  case 5:
-    // blue
-    singleColour(0, 0, 255);
-    break;
-  case 6:
-    // magenta
-    singleColour(255, 0, 255);
-    break;
-  case 7:
-    // cyan
-    singleColour(0, 255, 255);
-    break;
-  case 8:
-    // white
-    singleColour(255, 255, 255);
-    break;
-  case 9:
-    hsvScroll();
-    break;
-  case 10:
-    hsvFade();
-    break;
-  case 11:
-    christmasRedAndGreen();
-    break;
-  case 12:
-    twinkle();
-    break;
-  case 13:
-    redNightLight();
-    break;
-  case 255:
-    // network mode - no action
-    break;
-  default:
-    // default to black
-    singleColour(0, 0, 0);
-    ledMode = 0;
-  }
-}
-
 void singleColour(uint8_t red, uint8_t green, uint8_t blue) {
 
   for (int i = 0; i < eepromData.pixelcount; i++) {
@@ -272,6 +246,68 @@ void redNightLight() {
       lastChange = millis();
     }
   }
+}
+
+// Convert a given HSV (Hue Saturation Value) to RGB(Red Green Blue) and set
+// the led to the color
+//  h is hue value, integer between 0 and 360
+//  s is saturation value, double between 0 and 1
+//  v is value, double between 0 and 1
+// http://splinter.com.au/blog/?p=29
+uint32_t ledHSV(int h, double s, double v) {
+  double r = 0;
+  double g = 0;
+  double b = 0;
+
+  double hf = h / 60.0;
+
+  int i = floor(h / 60.0);
+  double f = h / 60.0 - i;
+  double pv = v * (1 - s);
+  double qv = v * (1 - s * f);
+  double tv = v * (1 - s * (1 - f));
+
+  switch (i) {
+  case 0:
+    r = v;
+    g = tv;
+    b = pv;
+    break;
+  case 1:
+    r = qv;
+    g = v;
+    b = pv;
+    break;
+  case 2:
+    r = pv;
+    g = v;
+    b = tv;
+    break;
+  case 3:
+    r = pv;
+    g = qv;
+    b = v;
+    break;
+  case 4:
+    r = tv;
+    g = pv;
+    b = v;
+    break;
+  case 5:
+    r = v;
+    g = pv;
+    b = qv;
+    break;
+  }
+
+  // set each component to a integer value between 0 and 255
+  int red = constrain((int)255 * r, 0, 255);
+  int green = constrain((int)255 * g, 0, 255);
+  int blue = constrain((int)255 * b, 0, 255);
+
+  return pixels.Color(red * eepromData.scalered / 255,
+                      green * eepromData.scalegreen / 255,
+                      blue * eepromData.scaleblue / 255);
 }
 
 void hsvFade() {
@@ -404,100 +440,68 @@ void twinkle() {
   }
 }
 
-void udpMessageHandler(int len) {
+void ledLoop() {
 
-  switch (inboundMessage[0]) {
-  case 0x01: {
-    // static colour: r, g, b
-    singleColour(inboundMessage[1], inboundMessage[2], inboundMessage[3]);
-    ledMode = 255;
-    break;
-  }
-  case 0x02:
-    // preset mode: n
-    ledMode = inboundMessage[1];
-    ledModeChanged = true;
-    break;
-  case 0x03: {
-    // full sequence: r, g, b, r, g, b, ...
-    uint8_t red, green, blue;
-    uint16_t pos = 1;
-    uint16_t pixel = 0;
-    while ((pos + 2) < len) {
-      red = inboundMessage[pos];
-      green = inboundMessage[pos + 1];
-      blue = inboundMessage[pos + 2];
-      pixels.setPixelColor(pixel, pixels.Color(red, green, blue));
-      pixel++;
-      pos += 3;
-    }
-    pixels.show();
-    ledMode = 255;
-    break;
-  }
-  }
-}
-
-// Convert a given HSV (Hue Saturation Value) to RGB(Red Green Blue) and set
-// the led to the color
-//  h is hue value, integer between 0 and 360
-//  s is saturation value, double between 0 and 1
-//  v is value, double between 0 and 1
-// http://splinter.com.au/blog/?p=29
-uint32_t ledHSV(int h, double s, double v) {
-  double r = 0;
-  double g = 0;
-  double b = 0;
-
-  double hf = h / 60.0;
-
-  int i = floor(h / 60.0);
-  double f = h / 60.0 - i;
-  double pv = v * (1 - s);
-  double qv = v * (1 - s * f);
-  double tv = v * (1 - s * (1 - f));
-
-  switch (i) {
+  switch (ledMode) {
   case 0:
-    r = v;
-    g = tv;
-    b = pv;
+    // black
+    singleColour(0, 0, 0);
     break;
   case 1:
-    r = qv;
-    g = v;
-    b = pv;
+    // red
+    singleColour(255, 0, 0);
     break;
   case 2:
-    r = pv;
-    g = v;
-    b = tv;
+    // dim red
+    singleColour(63, 0, 0);
     break;
   case 3:
-    r = pv;
-    g = qv;
-    b = v;
+    // green
+    singleColour(0, 255, 0);
     break;
   case 4:
-    r = tv;
-    g = pv;
-    b = v;
+    // yellow
+    singleColour(255, 255, 0);
     break;
   case 5:
-    r = v;
-    g = pv;
-    b = qv;
+    // blue
+    singleColour(0, 0, 255);
     break;
+  case 6:
+    // magenta
+    singleColour(255, 0, 255);
+    break;
+  case 7:
+    // cyan
+    singleColour(0, 255, 255);
+    break;
+  case 8:
+    // white
+    singleColour(255, 255, 255);
+    break;
+  case 9:
+    hsvScroll();
+    break;
+  case 10:
+    hsvFade();
+    break;
+  case 11:
+    christmasRedAndGreen();
+    break;
+  case 12:
+    twinkle();
+    break;
+  case 13:
+    redNightLight();
+    break;
+  case 255:
+    // network mode - no action
+    break;
+  default:
+    // default to black
+    singleColour(0, 0, 0);
+    ledMode = 0;
   }
-
-  // set each component to a integer value between 0 and 255
-  int red = constrain((int)255 * r, 0, 255);
-  int green = constrain((int)255 * g, 0, 255);
-  int blue = constrain((int)255 * b, 0, 255);
-
-  return pixels.Color(red * eepromData.scalered / 255,
-                      green * eepromData.scalegreen / 255,
-                      blue * eepromData.scaleblue / 255);
 }
 
 void configRootHandler() {

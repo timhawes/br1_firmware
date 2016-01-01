@@ -582,6 +582,18 @@ void configUpdateHandler() {
     EEPROM.commit();
   }
   server.send(200, "text/html", "<p>Settings updated</p>");
+
+  // set first three pixels to Red-Green-Blue using the updated configuration
+  // set the last pixel to White
+  pixels.updateType(eepromData.colourorder + NEO_KHZ800);
+  pixels.updateLength(eepromData.pixelcount);
+  singleColour(0, 0, 0);
+  pixels.setPixelColor(0, pixels.Color(eepromData.scalered, 0, 0));
+  pixels.setPixelColor(1, pixels.Color(0, eepromData.scalegreen, 0));
+  pixels.setPixelColor(2, pixels.Color(0, 0, eepromData.scaleblue));
+  pixels.setPixelColor(eepromData.pixelcount - 1,
+    pixels.Color(eepromData.scalered, eepromData.scalegreen, eepromData.scaleblue));
+  pixels.show();
 }
 
 void configuration_mode() {

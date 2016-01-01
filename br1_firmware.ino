@@ -44,6 +44,9 @@ const uint8_t buttonPin = 13;
 const uint8_t dataPin = 12;
 const unsigned int udpPort = 2812;
 
+const char *colourOrderNames[] = { "RGB", "RBG", "GRB", "GBR", "BRG", "BGR", NULL };
+const uint16_t colourOrderValues[] = { 6, 9, 82, 88, 161, 164 };
+
 struct EepromData {
   uint8_t configured;
   char ssid[128];
@@ -501,23 +504,50 @@ uint32_t ledHSV(int h, double s, double v) {
 }
 
 void configRootHandler() {
-  const char form[] =
+  int i;
+
+  String form = "<!DOCTYPE html>"
       "<form method=\"POST\" action=\"update\">SSID: <input type=\"text\" "
-      "name=\"ssid\" /><br/>"
-      "Passphrase: <input type=\"text\" name=\"passphrase\" /><br/>"
-      "Pixel Count: <input type=\"text\" name=\"pixelcount\" /><br/>"
-      "Colour Order: <select name=\"colourorder\">"
-      "<option value=\"6\">RGB</option>"
-      "<option value=\"9\">RBG</option>"
-      "<option value=\"82\">GRB</option>"
-      "<option value=\"161\">GBR</option>"
-      "<option value=\"88\">BRG</option>"
-      "<option value=\"164\">BGR</option>"
-      "</select><br/>"
-      "Scaling: "
-      "R<input type=\"text\" name=\"scalered\" value=\"255\"/>"
-      "G<input type=\"text\" name=\"scalegreen\" value=\"255\"/>"
-      "B<input type=\"text\" name=\"scaleblue\" value=\"255\"/><br/>"
+      "name=\"ssid\"";
+  if (eepromData.configured == 1)
+    form += " value=\"*\"";
+  form += "/><br/>"
+      "Passphrase: <input type=\"text\" name=\"passphrase\" ";
+  if (eepromData.configured == 1)
+    form += " value=\"*\"";
+  form += "/><br/>";
+
+  form += "Pixel Count: <input type=\"number\" name=\"pixelcount\" min=\"1\"";
+  if (eepromData.configured == 1) {
+    form += " value=\"";
+    form += eepromData.pixelcount;
+    form += "\"";
+  }
+  form += "/><br/>";
+
+  form += "Colour Order: <select name=\"colourorder\">";
+  for (i = 0; colourOrderNames[i] != NULL; i++) {
+    form += "<option value=\"";
+    form += colourOrderValues[i];
+    form += "\"";
+    if (eepromData.configured == 1 && eepromData.colourorder == colourOrderValues[i])
+      form += " selected";
+    form += ">";
+    form += colourOrderNames[i];
+    form += "</option>";
+  }
+  form += "</select><br/>";
+
+  form += "Scaling: "
+      "R<input type=\"number\" name=\"scalered\" min=\"0\" max=\"255\" value=\"";
+  form += (eepromData.configured == 1 ? eepromData.scalered : 255);
+  form += "\"/>"
+      "G<input type=\"number\" name=\"scalegreen\" min=\"0\" max=\"255\" value=\"";
+  form += (eepromData.configured == 1 ? eepromData.scalegreen : 255);
+  form += "\"/>"
+      "B<input type=\"number\" name=\"scaleblue\" min=\"0\" max=\"255\" value=\"";
+  form += (eepromData.configured == 1 ? eepromData.scaleblue : 255);
+  form += "\"/><br/>"
       "<input type=\"submit\" /></form>";
 
   server.send(200, "text/html", form);
@@ -526,10 +556,10 @@ void configRootHandler() {
 void configUpdateHandler() {
 
   for (uint8_t i = 0; i < server.args(); i++) {
-    if (server.argName(i) == "ssid") {
+    if (server.argName(i) == "ssid" && server.arg(i) != "*") {
       server.arg(i).toCharArray(eepromData.ssid, sizeof(eepromData.ssid));
     }
-    if (server.argName(i) == "passphrase") {
+    if (server.argName(i) == "passphrase" && server.arg(i) != "*") {
       server.arg(i).toCharArray(eepromData.passphrase, sizeof(eepromData.passphrase));
     }
     if (server.argName(i) == "pixelcount") {

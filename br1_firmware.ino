@@ -507,6 +507,7 @@ void configRootHandler() {
   int i;
 
   String form = "<!DOCTYPE html>"
+      "<head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"></head>"
       "<form method=\"POST\" action=\"update\">SSID: <input type=\"text\" "
       "name=\"ssid\"";
   if (eepromData.configured == 1)
